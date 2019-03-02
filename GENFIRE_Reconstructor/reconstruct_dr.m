@@ -1,32 +1,6 @@
-%%  GENFIRE_iterate %%
-
-%%inputs:
-%%  numIterations - number of iterations to run
-%%  initialObject - inital guess of object
-%%  support - region of 1's and 0's defining where the reconstruction can exist (voxels that are 0 in support will be set to 0 in reconstruction)
-%%  measuredK - measured Fourier points
-%%  constraintIndicators - a flag value that is used to determine when a particular Fourier point is enforced, i.e. by resolution.
-%%      The values to enforce at any particular iteration are determined by constraintEnforcementDelayIndicators.
-%%  constraintEnforcementDelayIndicators - vector of values indicating the Fourier enforcement cutoff. Fourier grid points with a constraintIndicators value greater than
-%%      or equal to the current constraintEnforcementDelayIndicators value will be enforced. The values in constraintEnforcementDelayIndicators are spread evenly over the number of iterations.
-%%  R_freeInd_complex - indices of 5% of points in the highest resolution shell of measuredK that are being withheld from 
-%%          reconstruction and compared to after iteration. 
-%%  R_freeVals_complex - corresponding complex values at the indices in R_freeInd_complex
-%%  enforce_positivity - whether or not to enforce positivity constraint
-%%  enforce_support - whether or not to enforce support constraint
-
-%%outputs:
-%%  rec - reconstruction after iteration
-%%  errK - reciprocal space error
-%%  Rfree_complex - value of complex Rfree in each resolution shell vs iteration
-
-%% Author: Alan (AJ) Pryor, Jr.
-%% Jianwei (John) Miao Coherent Imaging Group
-%% University of California, Los Angeles
-%% Copyright (c) 2015. All Rights Reserved.
+%%  GENFIRE_iterate dr %%
 
 function obj = reconstruct_dr(obj)
-dt_type = obj.dt_type;
 
 % paddedSupport = My_paddzero(obj.Support, [obj.n1_oversampled obj.n2_oversampled obj.n1_oversampled]); 
 paddedSupport = My_paddzero(obj.Support, size(obj.measuredK)); 
@@ -117,7 +91,13 @@ for iterationNum = 1:numIterations
         bestErr = 1e30;%reset best error
     end
     
-    switch dt_type
+    switch obj.ds_type
+        case 1
+            ds = obj.ds_value;
+        case 2
+            ds = 1 - 1*(1-sqrt((numIterations-iterationNum)/numIterations));
+    end
+    switch obj.dt_type
         case 1
             dt = obj.dt_value;
         case 2
@@ -153,17 +133,23 @@ for iterationNum = 1:numIterations
         obj.reconstruction = initialObject;
     end
 
+    if obj.save_temp == 1 && mod(iterationNum,obj.save_loopLength) == 0
+        temp_reconstruction = My_stripzero(fftshift(obj.reconstruction),[obj.Dim1 obj.Dim2 obj.Dim1]);
+        temp_filename = [obj.saveFilename,num2str(iterationNum),'.mat'];
+        save(temp_filename, 'temp_reconstruction');
+    end
+    
     fprintf('GENFIRE: Iteration %d: Error = %d\n',iterationNum, obj.errK(iterationNum));
     %enforce Fourier constraint
 %     k(constraintInd_complex_shifted) = obj.measuredK(constraintInd_complex);
     k(constraintInd_complex_shifted) = dt*k(constraintInd_complex_shifted) + (1-dt)*obj.measuredK(constraintInd_complex);
     u_K = ifftn(k);
 %     u_K = real(ifftn(k));
-    initialObject = 2*u_K - u;
+    initialObject = (1+ds)*u_K - ds*u;
     
 %     initialObject = real(ifftn(k));%obtain next object with IFFT
     initialObject = real(initialObject);%obtain next object with IFFT
-    u = u + initialObject - u_K;
+    u = initialObject + ds*(u - u_K);
 end
 
 reconstructionTime = toc;
