@@ -1,6 +1,7 @@
 # GENFIRE version 2.0  
 Minh Rose, Yao Yang,  
-UCLA, Coherent Imaging Group  
+UCLA, Department of Physics and Astronomy,  
+Coherent Imaging Group  
 modified GENFIRE with DR algorithm  
 Update:   
 (1) change double to single precision inside to make it faster;   
