@@ -30,24 +30,9 @@ projections = obj.InputProjections;
 angles = obj.InputAngles;
 particleWindowSize = obj.particleWindowSize(2);
 interpolationCutoffDistance = obj.interpolationCutoffDistance;
-doCTFcorrection = obj.doCTFcorrection;
-CTFparameters = obj.CTFparameters;
 allowMultipleGridMatches = obj.allowMultipleGridMatches;
 oversamplingRatio = obj.oversamplingRatio;
 %,particleWindowSize,oversamplingRatio,interpolationCutoffDistance,doCTFcorrection, [], allowMultipleGridMatches
-
-%create empty CTF parameters if not doing CTF correction
-if ~doCTFcorrection
-   CTFparameters = []; 
-end
-if doCTFcorrection && nargin < 6
-    error('GENFIRE: doCTFcorrection is turned on, but CTFparameters was not provided.\n\n')
-end
-
-%calculate padding parameters for the inputted window size
-padding = round(particleWindowSize*(oversamplingRatio-1)/2);
-centralPixel = size(projections,2)/2+1;
-halfWindowSize = particleWindowSize/2;
 
 %initialize array to hold measured data
 if mod(particleWindowSize,2)==0
@@ -65,81 +50,14 @@ n2 = single(nc-1);%radius of array
 
 %setup the coordinates of the reciprocal slice to determine its 3D coordinates
 [ky, kx] = meshgrid((1:dim1)-nc,(1:dim1)-nc);ky = single(ky);kx = single(kx);
-Q = sqrt(ky.^2+kx.^2)./n2;
 kx = single(kx(:))'; ky = single(ky(:))'; %initialize coordinates of unrotate projection slice
 kz = zeros(1,dim1*dim1,'single'); %0 degree rotation is a projection onto the X-Y plane, so all points have kz=0;
 
 %check for the presence of some of the CTF correction options and set defaults if they are absent
-if doCTFcorrection
-    if isfield(CTFparameters,'CTFThrowOutThreshhold')
-        CTFThrowOutThreshhold = CTFparameters(1).CTFThrowOutThreshhold; %value below which to not grid points that were suppressed by the CTF
-    else
-        CTFThrowOutThreshhold = 0.05;%default value
-    end
-    if isfield(CTFparameters,'ignore_first_peak')
-       ignore_first_peak =  CTFparameters(1).ignore_first_peak;
-    else
-        ignore_first_peak = 0;
-    end  
 
-for projNum = 1:size(projections,3);
-    %get Contrast Transfer Function (CTF)
-    pjK = projections(:,:,projNum);
-    centralPixelK = size(pjK,2)/2+1;
-    
-    %crop out the appropriate window
-    pjK = pjK(centralPixelK-halfWindowSize:centralPixelK+halfWindowSize-1,centralPixelK-halfWindowSize:centralPixelK+halfWindowSize-1);%window projection
-
-    pjK = my_fft(padarray(pjK,[padding padding 0]));%pad and take FFT
-    
-    %get the CTF
-    [CTF, gamma] = ctf_correction(pjK,CTFparameters(projNum).defocusU,CTFparameters(projNum).defocusV,CTFparameters(projNum).defocusAngle,ignore_first_peak);%get CTF
-    if CTFparameters(projNum).phaseFlip %this should always be on unless your projections have already been CTF corrected elsewhere
-        pjK(CTF<0) = -1*pjK(CTF<0);%phase flip
-    end
-    
-    if CTFparameters(projNum).correctAmplitudesWithWienerFilter
-    	
-    	%get dimensions of the CTF array
-        dim1_2 = size(CTF,1);
-        nc2 = single(round((dim1_2+1)/2));%center pixel
-        n22 = single(nc2-1);%radius of array
-
-		%reciprocal indices
-        [ky2, kx2] = meshgrid(-n22:n22-1,-n22:n22-1);ky2 = single(ky2);kx2 = single(kx2);
-        Q2 = sqrt(ky2.^2+kx2.^2)./n22;
-        
-        SSNR = ones(size(Q2));%initialize SSNR map
-        %interpolate the SSNR array from the provided values of the SSNR per frequency shell
-        SSNR(:) = interp1(linspace(0,1+1e-10,size(CTFparameters(projNum).SSNR,2)),CTFparameters(projNum).SSNR,Q2(:),'linear');%make weighting map from average FRC
-        SSNR(isnan(SSNR)) = 0;
-        wienerFilter = abs(CTF)./(abs(CTF).^2+(1./SSNR));%construct Wiener filter for CTF amplitude correction
-        pjK = pjK.*wienerFilter; 
-    elseif CTFparameters(projNum).multiplyByCTFabs%multiplying by CTF boosts SNR and is most useful for datasets that are extremely noisy
-        pjK = pjK.*abs(CTF); 
-    end
-    
-    if CTFThrowOutThreshhold>0 %recalculate CTF at new array size for throwing out values that were near CTF 0 crossover
-        pjK(abs(CTF)<CTFThrowOutThreshhold & (gamma>(pi/2))) = -999;%flag values where CTF was near 0 to ignore for gridding, but ignore out to first peak
-    end
-    
-    kMeasured(:,:,projNum) = pjK;   
-end
-    
-    if CTFThrowOutThreshhold > 0     %flag values below the where the CTF was smaller than the CTFThrowOutThreshhold
-        for projNum = 1:size(projections,3);
-            pjK = projections(centralPixelK-halfWindowSize:centralPixelK+halfWindowSize-1,centralPixelK-halfWindowSize:centralPixelK+halfWindowSize-1,projNum);
-            pjK = my_fft(padarray(pjK,[padding padding 0]));
-            CTF = ctf_correction(pjK,CTFparameters(projNum).defocusU,CTFparameters(projNum).defocusV,CTFparameters(projNum).defocusAngle,ignore_first_peak);%get CTF
-            pjK(abs(CTF)<CTFThrowOutThreshhold) = -999;%flag values where CTF was near 0 to ignore for gridding
-            kMeasured(:,:,projNum) = pjK;
-        end  
-    end
-else
-    %otherwise, add the projection to the stack of data with no further corrections
-    for projNum = 1:size(projections,3);
-        kMeasured(:,:,projNum) = my_fft(My_paddzero(projections(:,:,projNum),[size(kMeasured,1) size(kMeasured,2)]));
-    end  
+%otherwise, add the projection to the stack of data with no further corrections
+for projNum = 1:size(projections,3)
+    kMeasured(:,:,projNum) = my_fft(My_paddzero(projections(:,:,projNum),[size(kMeasured,1) size(kMeasured,2)]));
 end
 
 clear projections
@@ -150,7 +68,7 @@ measuredY = zeros(1,size(kMeasured,2)*size(kMeasured,1),size(kMeasured,3),'singl
 measuredZ = zeros(1,size(kMeasured,2)*size(kMeasured,1),size(kMeasured,3),'single');
 
 
-for projNum = 1:size(kMeasured,3);
+for projNum = 1:size(kMeasured,3)
 phi = angles(projNum,1);
 theta = angles(projNum,2);
 psi = angles(projNum,3);
