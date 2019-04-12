@@ -8,7 +8,7 @@ filenameFinalRecon  = 'results/Genfire_tomo_recon.mat';
 
 %% GENFIRE parameters
 
-doGPU = 0;
+doGPU = 1;
 
 GENFIRE = GENFIRE_Reconstructor();
 
