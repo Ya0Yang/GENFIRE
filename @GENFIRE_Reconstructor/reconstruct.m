@@ -172,7 +172,7 @@ for iterationNum = 1:numIterations
             pj = obj.InputProjections(:,:,i);
             model = fftshift(initialObject);
             model = model(Vol_ind(1,1):Vol_ind(1,2),Vol_ind(2,1):Vol_ind(2,2),Vol_ind(3,1):Vol_ind(3,2));
-            back_pj = calculate3Dprojection_RealSpaceinterp_general(model,Angles(i,1),Angles(i,2),Angles(i,3),obj.vector1,obj.vector2,obj.vector3);
+            back_pj = calculate3Dprojection_RealSpaceinterp(model,Angles(i,1),Angles(i,2),Angles(i,3));
             Rarr(i) = sum( abs(back_pj(:) - pj(:)) )/ sum(abs(pj(:)));
             Rarr2(i) = norm( back_pj - pj, 'fro' )/ norm( pj, 'fro' );
         end

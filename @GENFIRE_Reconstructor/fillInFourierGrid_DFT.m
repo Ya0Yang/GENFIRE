@@ -77,7 +77,12 @@
 %         functions
 %         3. Removed confidence weight calculation and SD calculation
 
-function obj = fillInFourierGrid_DFT6(obj)
+% Tenth version date: 2018. 11. 01. (Minh & Yao)
+% Change: 1. use NUFFT for CPU-gridding
+%         2. optimized GPU-gridding
+%         3. change 'double' to 'single' accuracy to save memory
+
+function obj = fillInFourierGrid_DFT(obj)
 
 tic
 

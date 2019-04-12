@@ -1,5 +1,7 @@
 classdef GENFIRE_Reconstructor
-    
+    % Genfire v2 2018.11.01
+    % Modified by Yao Yang, Coherent Imaging Group, UCLA
+    % Gridding method changed by Minh Rose
     properties
         % internal variables to be cleared after run
         InputProjections
@@ -10,11 +12,10 @@ classdef GENFIRE_Reconstructor
         initialObject
         recIFFT
         
-        
         % internal variables to be kept after run
         reconstruction
-        final_rec
         errK
+        errR
         Dim1  % projection size1
         Dim2  % projection size2
         n1_oversampled  % projection size1 after oversampling
@@ -22,9 +23,13 @@ classdef GENFIRE_Reconstructor
         NumProjs
         Rfree_complex
         constraintEnforcementDelayIndicators
-        Rfactor
-        Rarray
+        Rarr_record
+        Rarr2_record
         simuProjs
+        
+        % R factor monitoring
+        monitor_R = 0
+        monitorR_loopLength = 10
         
         % filenames
         filename_Projections = ''
@@ -57,16 +62,7 @@ classdef GENFIRE_Reconstructor
         % DFT related parameters
         DFT_CentroSymmetricity = 1;
         DFT_doGPU = 0;
-        sigma_RBF = 0.5
-        sigma_GaussKernel = 100
-        
-        % dt parameters for new dr method
-        dt_type  = 1;
-        dt_value = 0.1;
-        ds_type = 1;
-        ds_value = 0.5;
         Vol_ind =  zeros(3,2)
-        smooth = 0;
         
         % save temp reconstruction
         save_temp = 0;
@@ -78,11 +74,8 @@ classdef GENFIRE_Reconstructor
         
         % declare long methods in external files
         obj = fillInFourierGrid_DFT(obj)
-        obj = fillInFourierGrid(obj)
         
         obj = reconstruct(obj)
-        obj = reconstruct_dr(obj)
-        obj = reconstruct_dr_relaxed(obj)
         obj = CentroSymmetricity(obj, FS, n1, n_k1, n2)
         
         % declare short methods in this file
@@ -155,7 +148,7 @@ classdef GENFIRE_Reconstructor
             end
             
             % check if gridding method is legitimate
-            if obj.griddingMethod>6
+            if obj.griddingMethod>2
                 error('GENFIRE: Unrecognized gridding method.')
             end
             
@@ -180,18 +173,10 @@ classdef GENFIRE_Reconstructor
             fprintf('GENFIRE: Assembling Fourier grid...\n\n');
             
             switch obj.griddingMethod
-                case 0
-                    obj = obj.fillInFourierGrid_DFT_old();
                 case 1
                     obj = obj.fillInFourierGrid();
                 case 2
                     obj = obj.fillInFourierGrid_DFT();
-                case 3
-                    obj = obj.fillInFourierGrid_FFT_tri();
-                case 4
-                    obj = obj.fillInFourierGrid_DFT4();
-                case 6
-                    obj = obj.fillInFourierGrid_DFT6();
             end
             %class(obj.measuredK)
             obj.measuredK = single(obj.measuredK);
@@ -212,16 +197,14 @@ classdef GENFIRE_Reconstructor
             obj.InputAngles=[];
             %obj.measuredK=[];
             %obj.measuredK_mask=[];
-            %         obj.Support=[];
+            %obj.Support=[];
             obj.initialObject=[];
             obj.recIFFT=[];
         end
         
-        
         function SaveResults(obj)
             save(obj.filename_Results, 'obj')
         end
-        
         
         % set parameters for GENFIRE class
         function obj=set_parameters(obj,varargin)
