@@ -22,7 +22,7 @@ GENFIRE.oversamplingRatio = 4;
 GENFIRE.numIterations = 200; 
 GENFIRE.interpolationCutoffDistance =.125; 
 
-GENFIRE.ds_value = 0.85;
+% GENFIRE.ds_value = 0.85;
 GENFIRE.griddingMethod = 2; 
 
 GENFIRE.allowMultipleGridMatches = 1;
@@ -38,8 +38,7 @@ GENFIRE.vector3 = [1 0 0];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Begin GENFIRE
 
-GENFIRE.InputProjections = REFINEMENT_gd.refineProjections;
-GENFIRE.InputAngles = REFINEMENT_gd.refineAngles;
+GENFIRE = readFiles(GENFIRE);
 GENFIRE = CheckPrepareData(GENFIRE);
 GENFIRE = runGridding(GENFIRE); 
 GENFIRE = reconstruct(GENFIRE);
